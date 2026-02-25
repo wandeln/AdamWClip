@@ -11,7 +11,7 @@ To use AdamWClip in your pytorch project, simply run the following:
 
 ```python
 %pip install AdamWClip
-import AdamWClip
+from AdamWClip import AdamWClip
 ...
 optimizer = AdamWClip(model.parameters(),*args)
 ```
