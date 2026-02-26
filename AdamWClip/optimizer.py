@@ -21,6 +21,7 @@ class AdamWClip(Optimizer):
 		self.eps = eps
 		super(AdamWClip, self).__init__(params, defaults)
 
+	@torch.no_grad()
 	def step(self, closure=None, end=False):
 		"""Performs a single optimization step."""
 		loss = None
@@ -28,6 +29,7 @@ class AdamWClip(Optimizer):
 			loss = closure()
 
 		self.iteration += 1
+		t = self.iteration
 
 		for group in self.param_groups:
 			lr = group['lr']
@@ -36,48 +38,61 @@ class AdamWClip(Optimizer):
 			weight_decay = group['weight_decay']
 			clip_grad_adapt = group['clip_grad_adapt']
 			clip_grad_min = group['clip_grad_min']
+			
+			lr_bias_correction1 = -lr/(1.0 - beta_1**t)
+			bias_correction2 = 1.0/(1.0 - beta_2**t)
+			
+			thetas = []
+			grads = []
+			sum_grads = []
+			sum_grad_grads = []
 
 			for p in group['params']:
 				if p.grad is None:
 					continue
-				theta = p.data
-				grad = p.grad.data
-				if weight_decay != 0:
-					theta.add_(-weight_decay*lr*theta)
-
+				
+				thetas.append(p)
+				grads.append(p.grad)
+				
 				# Momentum part
 				param_state = self.state[p]
-
+				
 				# Buffers:
 				if 'sum_grad' not in param_state:
-					# 1. momentum
-					sum_grad = param_state['sum_grad'] = torch.zeros_like(grad)
-					# 2. momentum
-					sum_grad_grad = param_state['sum_grad_grad'] = torch.zeros_like(grad)
-				else:
-					# 1. momentum
-					sum_grad = param_state['sum_grad']
-					# 2. momentum
-					sum_grad_grad = param_state['sum_grad_grad']
-
-				if clip_grad_adapt is not None and self.iteration > self.clip_grad_warm_up:
-					E_grad_grad = sum_grad_grad / (1-beta_2**self.iteration)
-					clamp_adapt = clip_grad_adapt*torch.sqrt(E_grad_grad).clamp_(min=clip_grad_min)
-					grad.clamp_(-clamp_adapt,clamp_adapt)
-
-				# 1. momentum
-				sum_grad.mul_(beta_1).add_(grad*(1-beta_1))
-
-				# 2. momentum
-				sum_grad_grad.mul_(beta_2).add_(grad*grad*(1-beta_2))
-
-				# bias correction
-				E_grad = sum_grad / (1-beta_1**self.iteration)
-				E_grad_grad = sum_grad_grad / (1-beta_2**self.iteration) # could be optimized
-
-				step = lr*E_grad/(torch.sqrt(E_grad_grad)+self.eps) # could be optimized
-
-				# apply update step
-				theta.add_(-step)
+					param_state['sum_grad'] = torch.zeros_like(grads[-1]) # 1. momentum
+					param_state['sum_grad_grad'] = torch.zeros_like(grads[-1]) # 2. momentum
+				
+				sum_grads.append(param_state['sum_grad']) # 1. momentum
+				sum_grad_grads.append(param_state['sum_grad_grad']) # 2. momentum
+				
+			
+			if len(thetas)==0:
+				continue
+		
+			if weight_decay != 0:
+				torch._foreach_add_(thetas,thetas,alpha=-lr*weight_decay)
+				#theta.add_(-weight_decay*lr*theta)
+			
+			if clip_grad_adapt is not None and self.iteration > self.clip_grad_warm_up:
+				E_grad_grad_sqrts = torch._foreach_sqrt(torch._foreach_mul(sum_grad_grads,bias_correction2))
+				thresholds = torch._foreach_mul(torch._foreach_clamp_min(E_grad_grad_sqrts, clip_grad_min),clip_grad_adapt)
+				torch._foreach_clamp_min_(grads,torch._foreach_neg(thresholds))
+				torch._foreach_clamp_max_(grads,thresholds)
+				del thresholds
+			
+			# 1. momentum
+			torch._foreach_mul_(sum_grads,beta_1)
+			torch._foreach_add_(sum_grads,grads,alpha=(1-beta_1))
+			
+			# 2. momentum
+			torch._foreach_mul_(sum_grad_grads,beta_2)
+			torch._foreach_addcmul_(sum_grad_grads,grads,grads,value=(1-beta_2))
+			
+			E_grad_grad_sqrts = torch._foreach_sqrt(torch._foreach_mul(sum_grad_grads,bias_correction2))
+			
+			torch._foreach_add_(E_grad_grad_sqrts,self.eps)
+			
+			# apply update step
+			torch._foreach_addcdiv_(thetas,sum_grads,E_grad_grad_sqrts,value=lr_bias_correction1)
 
 		return loss
