@@ -3,7 +3,7 @@
 AdamWClip is an optimizer that extends AdamW with adaptive gradient clipping. 
 It automatically adapts the gradient clipping thresholds to the gradient statistics of each parameter resulting in equivariant thresholds with respect to scaling the gradients. 
 This makes finding suitable clipping thresholds much easier (usually, the default threshold of AdamWClip is good to go). 
-Furthermore, by directly utilizing the internal state variables of Adam, AdamWClip implements adaptive gradient clipping without an additional memory footprint (and only a marginal computational overhead). 
+Furthermore, by directly utilizing the internal state variables of Adam, AdamWClip doesn't require additional memory (and only a marginal computational overhead). 
 
 ## Useage
 
