@@ -8,9 +8,9 @@ class AdamWClip(Optimizer):
 
 	def __init__(self, params, lr=0.001, betas=(0.9,0.999), eps=1e-8, weight_decay=0.01, clip_grad_adapt = 3, clip_grad_min=0.01, clip_grad_warm_up=10):
 		"""
-		params, lr, betas, eps, weight_decay is identical to AdamW optimizer
-		On top of that, we have the following parameters:
-		:clip_grad_adapt:   adaptive gradient clipping threshold in terms of standard deviations of the clipped gradient distribution (default: 3)
+		params, lr, betas, eps, weight_decay are identical to AdamW optimizer
+		On top of that, we have the following additional parameters:
+		:clip_grad_adapt:   adaptive gradient clipping threshold in terms of standard deviations of the clipped gradient distribution. If set to None, this optimizer behaves exactly like AdamW (default: 3)
 		:clip_grad_min:     minimum value for the adaptive gradient clipping threshold (default: 0.01)
 		:clip_grad_warm_up: Number of initial update steps without gradient clipping to obtain reasonable gradient statistics at the beginning (default: 10)
 		"""
@@ -65,17 +65,19 @@ class AdamWClip(Optimizer):
 				sum_grads.append(param_state['sum_grad']) # 1. momentum
 				sum_grad_grads.append(param_state['sum_grad_grad']) # 2. momentum
 				
-			
 			if len(thetas)==0:
 				continue
 		
 			if weight_decay != 0:
 				torch._foreach_add_(thetas,thetas,alpha=-lr*weight_decay)
-				#theta.add_(-weight_decay*lr*theta)
 			
 			if clip_grad_adapt is not None and self.iteration > self.clip_grad_warm_up:
-				E_grad_grad_sqrts = torch._foreach_sqrt(torch._foreach_mul(sum_grad_grads,bias_correction2))
-				thresholds = torch._foreach_mul(torch._foreach_clamp_min(E_grad_grad_sqrts, clip_grad_min),clip_grad_adapt)
+				thresholds = torch._foreach_clamp_min(
+								torch._foreach_mul(
+									torch._foreach_sqrt(
+										torch._foreach_mul(sum_grad_grads,bias_correction2))
+								,clip_grad_adapt)
+							,clip_grad_min)
 				torch._foreach_clamp_min_(grads,torch._foreach_neg(thresholds))
 				torch._foreach_clamp_max_(grads,thresholds)
 				del thresholds
@@ -88,11 +90,12 @@ class AdamWClip(Optimizer):
 			torch._foreach_mul_(sum_grad_grads,beta_2)
 			torch._foreach_addcmul_(sum_grad_grads,grads,grads,value=(1-beta_2))
 			
-			E_grad_grad_sqrts = torch._foreach_sqrt(torch._foreach_mul(sum_grad_grads,bias_correction2))
-			
-			torch._foreach_add_(E_grad_grad_sqrts,self.eps)
-			
 			# apply update step
-			torch._foreach_addcdiv_(thetas,sum_grads,E_grad_grad_sqrts,value=lr_bias_correction1)
+			torch._foreach_addcdiv_(thetas,sum_grads,
+				torch._foreach_add(
+					torch._foreach_sqrt(
+						torch._foreach_mul(sum_grad_grads,bias_correction2))
+				,self.eps)
+			,value=lr_bias_correction1)
 
 		return loss
