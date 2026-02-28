@@ -6,7 +6,7 @@ class AdamWClip(Optimizer):
 	AdamW optimizer with adaptive gradient clipping
 	"""
 
-	def __init__(self, params, lr=0.001, betas=(0.9,0.999), eps=1e-8, weight_decay=0.01, clip_grad_adapt = 3, clip_grad_min=0.01, clip_grad_warm_up=10):
+	def __init__(self, params, lr=0.001, betas=(0.9,0.999), eps=1e-8, weight_decay=0.01, clip_grad_adapt=3, clip_grad_min=1e-10, clip_grad_warm_up=0):
 		"""
 		params, lr, betas, eps, weight_decay are identical to AdamW optimizer
 		On top of that, we have the following additional parameters:
@@ -15,7 +15,7 @@ class AdamWClip(Optimizer):
 		:clip_grad_warm_up: Number of initial update steps without gradient clipping to obtain reasonable gradient statistics at the beginning (default: 10)
 		"""
 		beta_1, beta_2 = betas
-		defaults = dict(lr=lr, beta_1=beta_1, beta_2=beta_2,weight_decay=weight_decay, clip_grad_adapt = clip_grad_adapt,clip_grad_min=clip_grad_min)
+		defaults = dict(lr=lr, beta_1=beta_1, beta_2=beta_2, weight_decay=weight_decay, clip_grad_adapt=clip_grad_adapt, clip_grad_min=clip_grad_min)
 		self.iteration = 0
 		self.clip_grad_warm_up = clip_grad_warm_up
 		self.eps = eps

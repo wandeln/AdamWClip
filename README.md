@@ -19,8 +19,8 @@ optimizer = AdamWClip(model.parameters(),*args)
 On top of the standard parameters from AdamW, AdamWClip offers the following additional parameters:  
 
 - clip_grad_adapt: adaptive gradient clipping threshold in terms of standard deviations of the clipped gradient distribution. If set to None, this optimizer behaves exactly like AdamW (default: 3)
-- clip_grad_min: minimum value for the adaptive gradient clipping threshold (default: 0.01)
-- clip_grad_warm_up: Number of initial update steps without gradient clipping to obtain reasonable gradient statistics at the beginning (default: 10)
+- clip_grad_min: minimum value for the adaptive gradient clipping threshold (default: 1e-10)
+- clip_grad_warm_up: (Optional) number of initial update steps without gradient clipping to obtain more reasonable gradient statistics at the beginning (default: 0)
 
 In most instances, the default values should be fine.
 
