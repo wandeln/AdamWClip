@@ -41,6 +41,7 @@ class AdamWClip(Optimizer):
 			
 			lr_bias_correction1 = -lr/(1.0 - beta_1**t)
 			bias_correction2 = 1.0/(1.0 - beta_2**t)
+			bias_correction_clip = 1.0/(1.0 - beta_2**(t-1)) if t>1 else 1.0
 			
 			thetas = []
 			grads = []
@@ -75,7 +76,7 @@ class AdamWClip(Optimizer):
 				thresholds = torch._foreach_clamp_min(
 								torch._foreach_mul(
 									torch._foreach_sqrt(
-										torch._foreach_mul(sum_grad_grads,bias_correction2))
+										torch._foreach_mul(sum_grad_grads,bias_correction_clip))
 								,clip_grad_adapt)
 							,clip_grad_min)
 				torch._foreach_clamp_min_(grads,torch._foreach_neg(thresholds))
